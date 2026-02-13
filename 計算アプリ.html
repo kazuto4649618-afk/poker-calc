@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>ポーカー収支計算ツール</title>
+  <style>
+    table { border-collapse: collapse; }
+    th, td { border: 1px solid #ccc; padding: 6px; text-align: center; }
+    input { width: 80px; }
+    .sum { background: #f0f0f0; font-weight: bold; }
+  </style>
+</head>
+<body>
+
+<h2>ポーカー収支計算</h2>
+
+<table id="table">
+  <tr>
+    <th>回</th>
+    <th><input placeholder="プレイヤー1"></th>
+    <th><input placeholder="プレイヤー2"></th>
+    <th><input placeholder="プレイヤー3"></th>
+    <th class="sum">行合計</th>
+  </tr>
+
+  <tr>
+    <td>1</td>
+    <td><input type="number" class="cell"></td>
+    <td><input type="number" class="cell"></td>
+    <td><input type="number" class="cell"></td>
+    <td class="sum row-sum">0</td>
+  </tr>
+
+  <tr>
+    <td>2</td>
+    <td><input type="number" class="cell"></td>
+    <td><input type="number" class="cell"></td>
+    <td><input type="number" class="cell"></td>
+    <td class="sum row-sum">0</td>
+  </tr>
+
+  <tr class="sum">
+    <td>合計</td>
+    <td class="col-sum">0</td>
+    <td class="col-sum">0</td>
+    <td class="col-sum">0</td>
+    <td id="grand-total">0</td>
+  </tr>
+</table>
+
+<script>
+function calc() {
+  const rows = document.querySelectorAll("#table tr");
+  const colSums = [0, 0, 0];
+  let grandTotal = 0;
+
+  rows.forEach((row, i) => {
+    if (i === 0 || i === rows.length - 1) return;
+
+    let rowSum = 0;
+    const inputs = row.querySelectorAll(".cell");
+
+    inputs.forEach((input, j) => {
+      const val = Number(input.value) || 0;
+      rowSum += val;
+      colSums[j] += val;
+    });
+
+    row.querySelector(".row-sum").textContent = rowSum;
+    grandTotal += rowSum;
+  });
+
+  document.querySelectorAll(".col-sum").forEach((cell, i) => {
+    cell.textContent = colSums[i];
+  });
+
+  document.getElementById("grand-total").textContent = grandTotal;
+}
+
+document.querySelectorAll(".cell").forEach(input => {
+  input.addEventListener("input", calc);
+});
+</script>
+
+</body>
+</html>
