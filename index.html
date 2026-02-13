@@ -1,69 +1,71 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-  <meta charset="UTF-8">
-  <title>ポーカー収支計算ツール</title>
-  <style>
-    table { border-collapse: collapse; }
-    th, td { border: 1px solid #ccc; padding: 6px; text-align: center; }
-    input { width: 80px; }
-    .sum { background: #f0f0f0; font-weight: bold; }
-  </style>
+<meta charset="UTF-8">
+<title>ポーカー収支計算ツール</title>
+<style>
+body { font-family: Arial; }
+table { border-collapse: collapse; margin-top: 10px; }
+th, td { border: 1px solid #ccc; padding: 6px; text-align: center; }
+input { width: 80px; text-align: center; }
+button { margin: 5px; padding: 5px 10px; }
+.sum { background: #f0f0f0; font-weight: bold; }
+.zero-ok { color: green; }
+.not-zero { color: red; font-weight: bold; }
+</style>
 </head>
 <body>
 
 <h2>ポーカー収支計算</h2>
 
+<button onclick="addPlayer()">＋ プレイヤー追加</button>
+<button onclick="addRow()">＋ 行追加</button>
+
 <table id="table">
-  <tr>
-    <th>回</th>
-    <th><input placeholder="プレイヤー1"></th>
-    <th><input placeholder="プレイヤー2"></th>
-    <th><input placeholder="プレイヤー3"></th>
-    <th class="sum">行合計</th>
-  </tr>
+<thead>
+<tr id="header-row">
+<th>回</th>
+<th><input placeholder="プレイヤー1"></th>
+<th><input placeholder="プレイヤー2"></th>
+<th>行合計</th>
+</tr>
+</thead>
 
-  <tr>
-    <td>1</td>
-    <td><input type="number" class="cell"></td>
-    <td><input type="number" class="cell"></td>
-    <td><input type="number" class="cell"></td>
-    <td class="sum row-sum">0</td>
-  </tr>
+<tbody id="body">
+<tr>
+<td>1</td>
+<td><input type="number" class="cell"></td>
+<td><input type="number" class="cell"></td>
+<td class="row-sum sum">0</td>
+</tr>
+</tbody>
 
-  <tr>
-    <td>2</td>
-    <td><input type="number" class="cell"></td>
-    <td><input type="number" class="cell"></td>
-    <td><input type="number" class="cell"></td>
-    <td class="sum row-sum">0</td>
-  </tr>
-
-  <tr class="sum">
-    <td>合計</td>
-    <td class="col-sum">0</td>
-    <td class="col-sum">0</td>
-    <td class="col-sum">0</td>
-    <td id="grand-total">0</td>
-  </tr>
+<tfoot>
+<tr class="sum">
+<td>合計</td>
+<td class="col-sum">0</td>
+<td class="col-sum">0</td>
+<td id="grand-total">0</td>
+</tr>
+</tfoot>
 </table>
 
 <script>
-function calc() {
-  const rows = document.querySelectorAll("#table tr");
-  const colSums = [0, 0, 0];
+
+function recalc() {
+  const rows = document.querySelectorAll("#body tr");
+  const colCount = document.querySelectorAll(".col-sum").length;
+  const colSums = Array(colCount).fill(0);
   let grandTotal = 0;
 
-  rows.forEach((row, i) => {
-    if (i === 0 || i === rows.length - 1) return;
-
+  rows.forEach(row => {
     let rowSum = 0;
     const inputs = row.querySelectorAll(".cell");
 
-    inputs.forEach((input, j) => {
+    inputs.forEach((input, i) => {
       const val = Number(input.value) || 0;
       rowSum += val;
-      colSums[j] += val;
+      colSums[i] += val;
     });
 
     row.querySelector(".row-sum").textContent = rowSum;
@@ -74,12 +76,64 @@ function calc() {
     cell.textContent = colSums[i];
   });
 
-  document.getElementById("grand-total").textContent = grandTotal;
+  const gt = document.getElementById("grand-total");
+  gt.textContent = grandTotal;
+
+  if (grandTotal === 0) {
+    gt.className = "zero-ok";
+  } else {
+    gt.className = "not-zero";
+  }
 }
 
-document.querySelectorAll(".cell").forEach(input => {
-  input.addEventListener("input", calc);
-});
+function addPlayer() {
+  const headerRow = document.getElementById("header-row");
+  const newTh = document.createElement("th");
+  newTh.innerHTML = '<input placeholder="新プレイヤー">';
+  headerRow.insertBefore(newTh, headerRow.lastElementChild);
+
+  document.querySelectorAll("#body tr").forEach(row => {
+    const newTd = document.createElement("td");
+    newTd.innerHTML = '<input type="number" class="cell">';
+    row.insertBefore(newTd, row.lastElementChild);
+  });
+
+  const totalRow = document.querySelector("tfoot tr");
+  const newTotalTd = document.createElement("td");
+  newTotalTd.className = "col-sum";
+  newTotalTd.textContent = "0";
+  totalRow.insertBefore(newTotalTd, totalRow.lastElementChild);
+
+  attachEvents();
+}
+
+function addRow() {
+  const body = document.getElementById("body");
+  const rowCount = body.rows.length + 1;
+  const colCount = document.querySelectorAll(".col-sum").length;
+
+  const newRow = document.createElement("tr");
+  newRow.innerHTML = `<td>${rowCount}</td>`;
+
+  for (let i = 0; i < colCount; i++) {
+    newRow.innerHTML += `<td><input type="number" class="cell"></td>`;
+  }
+
+  newRow.innerHTML += `<td class="row-sum sum">0</td>`;
+  body.appendChild(newRow);
+
+  attachEvents();
+}
+
+function attachEvents() {
+  document.querySelectorAll(".cell").forEach(input => {
+    input.removeEventListener("input", recalc);
+    input.addEventListener("input", recalc);
+  });
+}
+
+attachEvents();
+
 </script>
 
 </body>
