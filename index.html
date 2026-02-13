@@ -2,9 +2,9 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<title>ポーカー収支計算ツール</title>
+<title>ポーカー収支管理</title>
 <style>
-body { font-family: Arial; }
+body { font-family: Arial; margin: 20px; }
 table { border-collapse: collapse; margin-top: 10px; }
 th, td { border: 1px solid #ccc; padding: 6px; text-align: center; }
 input { width: 80px; text-align: center; }
@@ -16,10 +16,18 @@ button { margin: 5px; padding: 5px 10px; }
 </head>
 <body>
 
-<h2>ポーカー収支計算</h2>
+<h2>ポーカー収支管理</h2>
+
+<label>大会日付：</label>
+<input type="date" id="eventDate">
+
+<br><br>
 
 <button onclick="addPlayer()">＋ プレイヤー追加</button>
 <button onclick="addRow()">＋ 行追加</button>
+<button onclick="downloadCSV()">CSV出力</button>
+<button onclick="shareURL()">URL共有</button>
+<button onclick="resetData()">リセット</button>
 
 <table id="table">
 <thead>
@@ -52,89 +60,157 @@ button { margin: 5px; padding: 5px 10px; }
 
 <script>
 
+function getData() {
+  const headers = Array.from(document.querySelectorAll("#header-row input")).map(i => i.value);
+  const rows = Array.from(document.querySelectorAll("#body tr")).map(row =>
+    Array.from(row.querySelectorAll(".cell")).map(i => i.value)
+  );
+  const date = document.getElementById("eventDate").value;
+  return { headers, rows, date };
+}
+
+function setData(data) {
+  document.getElementById("eventDate").value = data.date || "";
+
+  const headerRow = document.getElementById("header-row");
+  while (headerRow.children.length > 2)
+    headerRow.removeChild(headerRow.children[1]);
+
+  data.headers.forEach(name => {
+    const th = document.createElement("th");
+    th.innerHTML = `<input value="${name}">`;
+    headerRow.insertBefore(th, headerRow.lastElementChild);
+  });
+
+  rebuildFooter(data.headers.length);
+
+  const body = document.getElementById("body");
+  body.innerHTML = "";
+
+  data.rows.forEach((rowData, i) => {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `<td>${i+1}</td>`;
+    rowData.forEach(v =>
+      tr.innerHTML += `<td><input type="number" class="cell" value="${v}"></td>`
+    );
+    tr.innerHTML += `<td class="row-sum sum">0</td>`;
+    body.appendChild(tr);
+  });
+
+  attachEvents();
+  recalc();
+}
+
+function shareURL() {
+  const data = getData();
+  const encoded = btoa(unescape(encodeURIComponent(JSON.stringify(data))));
+  const url = location.origin + location.pathname + "?data=" + encoded;
+  prompt("このURLをコピーしてください", url);
+}
+
+function loadFromURL() {
+  const params = new URLSearchParams(location.search);
+  if (params.has("data")) {
+    const decoded = JSON.parse(decodeURIComponent(escape(atob(params.get("data")))));
+    setData(decoded);
+  }
+}
+
+function downloadCSV() {
+  const data = getData();
+  let csv = "日付," + data.date + "\n";
+  csv += "回," + data.headers.join(",") + "\n";
+
+  data.rows.forEach((row,i) => {
+    csv += (i+1) + "," + row.join(",") + "\n";
+  });
+
+  const blob = new Blob([csv], {type: "text/csv"});
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(blob);
+  link.download = "poker_result.csv";
+  link.click();
+}
+
+function rebuildFooter(colCount) {
+  const tfoot = document.querySelector("tfoot tr");
+  tfoot.innerHTML = "<td>合計</td>";
+  for (let i=0;i<colCount;i++)
+    tfoot.innerHTML += `<td class="col-sum">0</td>`;
+  tfoot.innerHTML += `<td id="grand-total">0</td>`;
+}
+
 function recalc() {
   const rows = document.querySelectorAll("#body tr");
   const colCount = document.querySelectorAll(".col-sum").length;
   const colSums = Array(colCount).fill(0);
   let grandTotal = 0;
 
-  rows.forEach(row => {
-    let rowSum = 0;
-    const inputs = row.querySelectorAll(".cell");
+  rows.forEach(row=>{
+    let rowSum=0;
+    const inputs=row.querySelectorAll(".cell");
 
-    inputs.forEach((input, i) => {
-      const val = Number(input.value) || 0;
-      rowSum += val;
-      colSums[i] += val;
+    inputs.forEach((input,i)=>{
+      const val=Number(input.value)||0;
+      rowSum+=val;
+      colSums[i]+=val;
     });
 
-    row.querySelector(".row-sum").textContent = rowSum;
-    grandTotal += rowSum;
+    row.querySelector(".row-sum").textContent=rowSum;
+    grandTotal+=rowSum;
   });
 
-  document.querySelectorAll(".col-sum").forEach((cell, i) => {
-    cell.textContent = colSums[i];
-  });
+  document.querySelectorAll(".col-sum").forEach((c,i)=>c.textContent=colSums[i]);
 
-  const gt = document.getElementById("grand-total");
-  gt.textContent = grandTotal;
-
-  if (grandTotal === 0) {
-    gt.className = "zero-ok";
-  } else {
-    gt.className = "not-zero";
-  }
+  const gt=document.getElementById("grand-total");
+  gt.textContent=grandTotal;
+  gt.className=grandTotal===0?"zero-ok":"not-zero";
 }
 
-function addPlayer() {
-  const headerRow = document.getElementById("header-row");
-  const newTh = document.createElement("th");
-  newTh.innerHTML = '<input placeholder="新プレイヤー">';
-  headerRow.insertBefore(newTh, headerRow.lastElementChild);
+function addPlayer(){
+  const headerRow=document.getElementById("header-row");
+  const th=document.createElement("th");
+  th.innerHTML='<input placeholder="新プレイヤー">';
+  headerRow.insertBefore(th,headerRow.lastElementChild);
 
-  document.querySelectorAll("#body tr").forEach(row => {
-    const newTd = document.createElement("td");
-    newTd.innerHTML = '<input type="number" class="cell">';
-    row.insertBefore(newTd, row.lastElementChild);
+  document.querySelectorAll("#body tr").forEach(row=>{
+    const td=document.createElement("td");
+    td.innerHTML='<input type="number" class="cell">';
+    row.insertBefore(td,row.lastElementChild);
   });
 
-  const totalRow = document.querySelector("tfoot tr");
-  const newTotalTd = document.createElement("td");
-  newTotalTd.className = "col-sum";
-  newTotalTd.textContent = "0";
-  totalRow.insertBefore(newTotalTd, totalRow.lastElementChild);
+  rebuildFooter(document.querySelectorAll("#header-row input").length);
+  attachEvents();
+}
+
+function addRow(){
+  const body=document.getElementById("body");
+  const rowCount=body.rows.length+1;
+  const colCount=document.querySelectorAll(".col-sum").length;
+
+  const tr=document.createElement("tr");
+  tr.innerHTML=`<td>${rowCount}</td>`;
+  for(let i=0;i<colCount;i++)
+    tr.innerHTML+=`<td><input type="number" class="cell"></td>`;
+  tr.innerHTML+=`<td class="row-sum sum">0</td>`;
+  body.appendChild(tr);
 
   attachEvents();
 }
 
-function addRow() {
-  const body = document.getElementById("body");
-  const rowCount = body.rows.length + 1;
-  const colCount = document.querySelectorAll(".col-sum").length;
+function resetData(){ location.href=location.pathname; }
 
-  const newRow = document.createElement("tr");
-  newRow.innerHTML = `<td>${rowCount}</td>`;
-
-  for (let i = 0; i < colCount; i++) {
-    newRow.innerHTML += `<td><input type="number" class="cell"></td>`;
-  }
-
-  newRow.innerHTML += `<td class="row-sum sum">0</td>`;
-  body.appendChild(newRow);
-
-  attachEvents();
-}
-
-function attachEvents() {
-  document.querySelectorAll(".cell").forEach(input => {
-    input.removeEventListener("input", recalc);
-    input.addEventListener("input", recalc);
+function attachEvents(){
+  document.querySelectorAll(".cell").forEach(i=>{
+    i.removeEventListener("input",recalc);
+    i.addEventListener("input",recalc);
   });
 }
 
+loadFromURL();
 attachEvents();
+recalc();
 
 </script>
-
 </body>
 </html>
