@@ -2,215 +2,229 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>ポーカー収支管理</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <style>
-body { font-family: Arial; margin: 20px; }
-table { border-collapse: collapse; margin-top: 10px; }
-th, td { border: 1px solid #ccc; padding: 6px; text-align: center; }
-input { width: 80px; text-align: center; }
-button { margin: 5px; padding: 5px 10px; }
-.sum { background: #f0f0f0; font-weight: bold; }
-.zero-ok { color: green; }
-.not-zero { color: red; font-weight: bold; }
+body { font-family: sans-serif; padding:10px; margin:0; }
+h2 { text-align:center; }
+button { margin:5px 2px; padding:8px; }
+input { width:80px; }
+table { border-collapse: collapse; width:100%; font-size:14px; }
+th, td { border:1px solid #ccc; padding:5px; text-align:center; }
+thead { background:#f0f0f0; }
+@media(max-width:600px){
+  table { font-size:12px; }
+  input { width:60px; }
+}
+.section { margin-top:20px; }
 </style>
 </head>
 <body>
 
 <h2>ポーカー収支管理</h2>
 
-<label>大会日付：</label>
-<input type="date" id="eventDate">
+<div>
+大会名: <input type="text" id="tournamentName">
+日付: <input type="date" id="tournamentDate">
+<button onclick="saveTournament()">保存</button>
+<button onclick="downloadCSV()">CSV</button>
+</div>
 
-<br><br>
+<div class="section">
+<button onclick="addPlayer()">プレイヤー追加</button>
+<button onclick="addRow()">行追加</button>
+</div>
 
-<button onclick="addPlayer()">＋ プレイヤー追加</button>
-<button onclick="addRow()">＋ 行追加</button>
-<button onclick="downloadCSV()">CSV出力</button>
-<button onclick="shareURL()">URL共有</button>
-<button onclick="resetData()">リセット</button>
-
-<table id="table">
+<table id="pokerTable">
 <thead>
-<tr id="header-row">
-<th>回</th>
-<th><input placeholder="プレイヤー1"></th>
-<th><input placeholder="プレイヤー2"></th>
-<th>行合計</th>
+<tr id="playerRow">
+<th>項目</th>
+<th><input placeholder="Player1"></th>
+<th>合計</th>
 </tr>
 </thead>
-
-<tbody id="body">
+<tbody id="bodyRows">
 <tr>
 <td>1</td>
-<td><input type="number" class="cell"></td>
-<td><input type="number" class="cell"></td>
-<td class="row-sum sum">0</td>
+<td><input type="number" oninput="calculate()"></td>
+<td class="rowTotal">0</td>
 </tr>
 </tbody>
-
 <tfoot>
-<tr class="sum">
+<tr id="totalRow">
 <td>合計</td>
-<td class="col-sum">0</td>
-<td class="col-sum">0</td>
-<td id="grand-total">0</td>
+<td class="colTotal">0</td>
+<td id="grandTotal">0</td>
 </tr>
 </tfoot>
 </table>
 
+<div class="section">
+<h3>大会履歴</h3>
+<select id="historySelect" onchange="loadTournament()">
+<option value="">選択</option>
+</select>
+</div>
+
+<div class="section">
+<h3>年別プレイヤー収支</h3>
+<div id="yearlySummary"></div>
+</div>
+
 <script>
+function calculate() {
+  const table = document.getElementById("pokerTable");
+  const rows = table.tBodies[0].rows;
+  const colTotals = [];
+  let grandTotal = 0;
 
-function getData() {
-  const headers = Array.from(document.querySelectorAll("#header-row input")).map(i => i.value);
-  const rows = Array.from(document.querySelectorAll("#body tr")).map(row =>
-    Array.from(row.querySelectorAll(".cell")).map(i => i.value)
-  );
-  const date = document.getElementById("eventDate").value;
-  return { headers, rows, date };
+  for (let i=0;i<rows.length;i++) {
+    let rowTotal = 0;
+    for (let j=1;j<rows[i].cells.length-1;j++) {
+      const val = parseFloat(rows[i].cells[j].children[0]?.value) || 0;
+      rowTotal += val;
+      colTotals[j-1] = (colTotals[j-1] || 0) + val;
+    }
+    rows[i].cells[rows[i].cells.length-1].innerText = rowTotal;
+  }
+
+  const totalRow = document.getElementById("totalRow");
+  for (let i=0;i<colTotals.length;i++) {
+    totalRow.cells[i+1].innerText = colTotals[i];
+    grandTotal += colTotals[i];
+  }
+  document.getElementById("grandTotal").innerText = grandTotal;
 }
 
-function setData(data) {
-  document.getElementById("eventDate").value = data.date || "";
+function addPlayer() {
+  const headerRow = document.getElementById("playerRow");
+  const totalRow = document.getElementById("totalRow");
+  const bodyRows = document.getElementById("bodyRows").rows;
 
-  const headerRow = document.getElementById("header-row");
-  while (headerRow.children.length > 2)
-    headerRow.removeChild(headerRow.children[1]);
+  const th = document.createElement("th");
+  th.innerHTML = '<input placeholder="Player">';
+  headerRow.insertBefore(th, headerRow.lastElementChild);
 
-  data.headers.forEach(name => {
-    const th = document.createElement("th");
-    th.innerHTML = `<input value="${name}">`;
-    headerRow.insertBefore(th, headerRow.lastElementChild);
-  });
+  for (let row of bodyRows) {
+    const td = document.createElement("td");
+    td.innerHTML = '<input type="number" oninput="calculate()">';
+    row.insertBefore(td, row.lastElementChild);
+  }
 
-  rebuildFooter(data.headers.length);
-
-  const body = document.getElementById("body");
-  body.innerHTML = "";
-
-  data.rows.forEach((rowData, i) => {
-    const tr = document.createElement("tr");
-    tr.innerHTML = `<td>${i+1}</td>`;
-    rowData.forEach(v =>
-      tr.innerHTML += `<td><input type="number" class="cell" value="${v}"></td>`
-    );
-    tr.innerHTML += `<td class="row-sum sum">0</td>`;
-    body.appendChild(tr);
-  });
-
-  attachEvents();
-  recalc();
+  const tdTotal = document.createElement("td");
+  tdTotal.className="colTotal";
+  tdTotal.innerText="0";
+  totalRow.insertBefore(tdTotal, totalRow.lastElementChild);
 }
 
-function shareURL() {
-  const data = getData();
-  const encoded = btoa(unescape(encodeURIComponent(JSON.stringify(data))));
-  const url = location.origin + location.pathname + "?data=" + encoded;
-  prompt("このURLをコピーしてください", url);
+function addRow() {
+  const body = document.getElementById("bodyRows");
+  const newRow = body.insertRow();
+  newRow.insertCell().innerText = body.rows.length;
+  const playerCount = document.getElementById("playerRow").cells.length-2;
+
+  for(let i=0;i<playerCount;i++){
+    const td = newRow.insertCell();
+    td.innerHTML='<input type="number" oninput="calculate()">';
+  }
+  newRow.insertCell().className="rowTotal";
 }
 
-function loadFromURL() {
-  const params = new URLSearchParams(location.search);
-  if (params.has("data")) {
-    const decoded = JSON.parse(decodeURIComponent(escape(atob(params.get("data")))));
-    setData(decoded);
+function saveTournament() {
+  const name = document.getElementById("tournamentName").value;
+  const date = document.getElementById("tournamentDate").value;
+  if(!name || !date) return alert("大会名と日付を入力");
+
+  const data = getCurrentData();
+  const history = JSON.parse(localStorage.getItem("pokerHistory")||"{}");
+  history[name+"_"+date]=data;
+  localStorage.setItem("pokerHistory",JSON.stringify(history));
+  loadHistoryList();
+  updateYearlySummary();
+  alert("保存しました");
+}
+
+function getCurrentData(){
+  const table = document.getElementById("pokerTable");
+  const players = [];
+  const headerCells = table.tHead.rows[0].cells;
+  for(let i=1;i<headerCells.length-1;i++){
+    players.push(headerCells[i].children[0].value||"Player");
+  }
+
+  const totals = [];
+  const totalRow = document.getElementById("totalRow").cells;
+  for(let i=1;i<totalRow.length-1;i++){
+    totals.push(parseFloat(totalRow[i].innerText)||0);
+  }
+
+  return {
+    name: document.getElementById("tournamentName").value,
+    date: document.getElementById("tournamentDate").value,
+    players: players,
+    totals: totals
+  };
+}
+
+function loadHistoryList(){
+  const select=document.getElementById("historySelect");
+  select.innerHTML='<option value="">選択</option>';
+  const history=JSON.parse(localStorage.getItem("pokerHistory")||"{}");
+  for(let key in history){
+    select.innerHTML+=`<option value="${key}">${key}</option>`;
   }
 }
 
-function downloadCSV() {
-  const data = getData();
-  let csv = "日付," + data.date + "\n";
-  csv += "回," + data.headers.join(",") + "\n";
-
-  data.rows.forEach((row,i) => {
-    csv += (i+1) + "," + row.join(",") + "\n";
-  });
-
-  const blob = new Blob([csv], {type: "text/csv"});
-  const link = document.createElement("a");
-  link.href = URL.createObjectURL(blob);
-  link.download = "poker_result.csv";
-  link.click();
+function loadTournament(){
+  const key=document.getElementById("historySelect").value;
+  if(!key) return;
+  const history=JSON.parse(localStorage.getItem("pokerHistory")||"{}");
+  alert("保存済データ:\n"+JSON.stringify(history[key],null,2));
 }
 
-function rebuildFooter(colCount) {
-  const tfoot = document.querySelector("tfoot tr");
-  tfoot.innerHTML = "<td>合計</td>";
-  for (let i=0;i<colCount;i++)
-    tfoot.innerHTML += `<td class="col-sum">0</td>`;
-  tfoot.innerHTML += `<td id="grand-total">0</td>`;
-}
+function updateYearlySummary(){
+  const history=JSON.parse(localStorage.getItem("pokerHistory")||"{}");
+  const yearly={};
 
-function recalc() {
-  const rows = document.querySelectorAll("#body tr");
-  const colCount = document.querySelectorAll(".col-sum").length;
-  const colSums = Array(colCount).fill(0);
-  let grandTotal = 0;
+  for(let key in history){
+    const data=history[key];
+    const year=data.date.substring(0,4);
+    if(!yearly[year]) yearly[year]={};
 
-  rows.forEach(row=>{
-    let rowSum=0;
-    const inputs=row.querySelectorAll(".cell");
-
-    inputs.forEach((input,i)=>{
-      const val=Number(input.value)||0;
-      rowSum+=val;
-      colSums[i]+=val;
+    data.players.forEach((p,i)=>{
+      yearly[year][p]=(yearly[year][p]||0)+data.totals[i];
     });
+  }
 
-    row.querySelector(".row-sum").textContent=rowSum;
-    grandTotal+=rowSum;
+  let html="";
+  for(let year in yearly){
+    html+=`<h4>${year}年</h4><ul>`;
+    for(let p in yearly[year]){
+      html+=`<li>${p}: ${yearly[year][p]}</li>`;
+    }
+    html+="</ul>";
+  }
+
+  document.getElementById("yearlySummary").innerHTML=html;
+}
+
+function downloadCSV(){
+  const data=getCurrentData();
+  let csv="Player,Total\n";
+  data.players.forEach((p,i)=>{
+    csv+=`${p},${data.totals[i]}\n`;
   });
-
-  document.querySelectorAll(".col-sum").forEach((c,i)=>c.textContent=colSums[i]);
-
-  const gt=document.getElementById("grand-total");
-  gt.textContent=grandTotal;
-  gt.className=grandTotal===0?"zero-ok":"not-zero";
+  const blob=new Blob([csv],{type:"text/csv"});
+  const a=document.createElement("a");
+  a.href=URL.createObjectURL(blob);
+  a.download="poker.csv";
+  a.click();
 }
 
-function addPlayer(){
-  const headerRow=document.getElementById("header-row");
-  const th=document.createElement("th");
-  th.innerHTML='<input placeholder="新プレイヤー">';
-  headerRow.insertBefore(th,headerRow.lastElementChild);
-
-  document.querySelectorAll("#body tr").forEach(row=>{
-    const td=document.createElement("td");
-    td.innerHTML='<input type="number" class="cell">';
-    row.insertBefore(td,row.lastElementChild);
-  });
-
-  rebuildFooter(document.querySelectorAll("#header-row input").length);
-  attachEvents();
-}
-
-function addRow(){
-  const body=document.getElementById("body");
-  const rowCount=body.rows.length+1;
-  const colCount=document.querySelectorAll(".col-sum").length;
-
-  const tr=document.createElement("tr");
-  tr.innerHTML=`<td>${rowCount}</td>`;
-  for(let i=0;i<colCount;i++)
-    tr.innerHTML+=`<td><input type="number" class="cell"></td>`;
-  tr.innerHTML+=`<td class="row-sum sum">0</td>`;
-  body.appendChild(tr);
-
-  attachEvents();
-}
-
-function resetData(){ location.href=location.pathname; }
-
-function attachEvents(){
-  document.querySelectorAll(".cell").forEach(i=>{
-    i.removeEventListener("input",recalc);
-    i.addEventListener("input",recalc);
-  });
-}
-
-loadFromURL();
-attachEvents();
-recalc();
-
+loadHistoryList();
+updateYearlySummary();
 </script>
+
 </body>
 </html>
